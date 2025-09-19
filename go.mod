@@ -1,3 +1,5 @@
-module github.com/sombr/go-container-roundrobin
+module github.com/lordofscripts/go-roundrobin
 
-go 1.20
+go 1.25
+
+require github.com/pion/transport/v3 v3.0.7

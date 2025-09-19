@@ -1,16 +1,15 @@
 /* -----------------------------------------------------------------
  *				   P u b l i c   D o m a i n / F O S
  *  			Copyright (C)2023 Serge Toro, and
- *				Copyright (C)2025 Muhammad H. Hosseinpour
+ *				Copyright (C)2025 Didimo Grimaldo
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- * Serge Toro's original RingQueue with M. Hadi's enhancements.
+ * A rune-specific version that does not have the overhead of generics.
  *-----------------------------------------------------------------*/
 package roundrobin
 
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -18,38 +17,41 @@ import (
  *				I n t e r f a c e s
  *-----------------------------------------------------------------*/
 
-var _ IRingQueue[int] = (*RingQueue[int])(nil)
+var _ IRingQueue[rune] = (*RuneRingQueue)(nil)
 
 /* ----------------------------------------------------------------
  *				P u b l i c		T y p e s
  *-----------------------------------------------------------------*/
 
-type RingQueue[T any] struct {
-	data   []T  // container data of a generic type T
-	isFull bool // disambiguate whether the queue is full or empty
-	start  int  // start index (inclusive, i.e. first element)
-	end    int  // end index (exclusive, i.e. next after last element)
+/**
+ * A specialized version of the generics RingQueue[T]. First born out
+ * of curiousity for the benchmark between this and the generic version,
+ * and also because I was precisely looking for a rune ring buffer for
+ * my pet project.
+ */
+type RuneRingQueue struct {
+	data   []rune // container data of runes
+	isFull bool   // disambiguate whether the queue is full or empty
+	start  int    // start index (inclusive, i.e. first element)
+	end    int    // end index (exclusive, i.e. next after last element)
 
-	// Hadi's enhancements
-	whenFull  WhenFull
-	closed    bool
-	onClose   OnCloseCallback[T]
-	closeOnce sync.Once
+	whenFull WhenFull
 }
 
 /* ----------------------------------------------------------------
  *				C o n s t r u c t o r s
  *-----------------------------------------------------------------*/
 
-func NewRingQueue[T any](capacity int) *RingQueue[T] {
-	return &RingQueue[T]{
-		data:   make([]T, capacity),
-		isFull: false,
-		start:  0,
-		end:    0,
-
+/**
+ * A specific (non-generic) Ring Queue to hold unicode runes.
+ */
+func NewRuneRingQueue(capacity int) *RuneRingQueue {
+	return &RuneRingQueue{
+		data:     make([]rune, capacity),
+		isFull:   false,
+		start:    0,
+		end:      0,
 		whenFull: WhenFullError,
-		closed:   false,
 	}
 }
 
@@ -57,20 +59,10 @@ func NewRingQueue[T any](capacity int) *RingQueue[T] {
  *				P u b l i c		M e t h o d s
  *-----------------------------------------------------------------*/
 
-func (r *RingQueue[T]) SetWhenFull(a WhenFull) IRingQueue[T] {
-	r.whenFull = a
-	return r
-}
-
-func (r *RingQueue[T]) SetOnClose(callback OnCloseCallback[T]) IRingQueue[T] {
-	r.onClose = callback
-	return r
-}
-
-// @implements fmt.Stringer interface
-func (r *RingQueue[T]) String() string {
+// @implements fmt.Stringer
+func (r *RuneRingQueue) String() string {
 	return fmt.Sprintf(
-		"[RRQ full:%v size:%d start:%d end:%d data:%v]",
+		"[RuneRQ full:%v size:%d start:%d end:%d data:%v]",
 		r.isFull,
 		len(r.data),
 		r.start,
@@ -78,9 +70,9 @@ func (r *RingQueue[T]) String() string {
 		r.data)
 }
 
-func (r *RingQueue[T]) Push(elem T) (int, error) {
-	if r.closed {
-		return 0, ErrClosed
+func (r *RuneRingQueue) Push(elem rune) (int, error) {
+	if r.isFull {
+		return r.Size(), ErrFullQueue
 	}
 
 	if r.isFull {
@@ -104,12 +96,8 @@ func (r *RingQueue[T]) Push(elem T) (int, error) {
 	return r.Size(), nil
 }
 
-func (r *RingQueue[T]) Pop() (T, int, error) {
-	var res T // "zero" element (respective of the type)
-	if r.closed {
-		return res, 0, ErrClosed
-	}
-
+func (r *RuneRingQueue) Pop() (rune, int, error) {
+	var res rune // "zero" element (respective of the type)
 	if !r.isFull && r.start == r.end {
 		return res, 0, ErrEmptyQueue
 	}
@@ -121,24 +109,16 @@ func (r *RingQueue[T]) Pop() (T, int, error) {
 	return res, r.Size(), nil
 }
 
-func (r *RingQueue[T]) Peek() (T, int, error) {
-	var res T // "zero" element (respective of the type)
-	if r.closed {
-		return res, 0, ErrClosed
-	}
-
+func (r *RuneRingQueue) Peek() (rune, int, error) {
+	var res rune // "zero" element (respective of the type)
 	if !r.isFull && r.start == r.end {
-		return res, 0, fmt.Errorf("empty queue")
+		return res, 0, ErrEmptyQueue
 	}
 
 	return r.data[r.start], r.Size(), nil
 }
 
-func (r *RingQueue[T]) Size() int {
-	if r.closed {
-		return 0
-	}
-
+func (r *RuneRingQueue) Size() int {
 	res := r.end - r.start
 	if res == 0 && r.isFull {
 		res = len(r.data)
@@ -149,38 +129,43 @@ func (r *RingQueue[T]) Size() int {
 	return res
 }
 
-func (r *RingQueue[T]) Cap() int {
-	if r.closed {
-		return 0
-	}
-
+func (r *RuneRingQueue) Cap() int {
 	return len(r.data)
 }
 
-func (r *RingQueue[T]) IsFull() bool {
-	if r.closed {
-		return false
-	}
-
+func (r *RuneRingQueue) IsFull() bool {
 	return r.isFull
 }
 
-func (r *RingQueue[T]) SetPopDeadline(t time.Time) error {
+/**
+ * Sets the behaviour when pushing onto a full Ring Queue.
+ * It can throw an error or overwrite old data.
+ */
+func (r *RuneRingQueue) SetWhenFull(a WhenFull) IRingQueue[rune] {
+	r.whenFull = a
+	return r
+}
+
+/**
+ * Throws ErrUnsupported. Simply complies with the interface.
+ * @implement roundrobin.IRingQueue[rune]
+ */
+func (r *RuneRingQueue) SetPopDeadline(t time.Time) error {
 	return errors.ErrUnsupported
 }
 
-// @implement io.Closer
-func (r *RingQueue[T]) Close() error {
-	r.closeOnce.Do(func() {
-		r.closed = true
-		if r.onClose != nil {
-			for (r.end - r.start) != 0 {
-				res := r.data[r.start]
-				r.start = (r.start + 1) % len(r.data)
-				r.onClose(res)
-			}
-		}
-		r.data = nil
-	})
+/**
+ * Does nothing, simply complies with the interface.
+ * @implement roundrobin.IRingQueue[rune]
+ */
+func (r *RuneRingQueue) SetOnClose(callback OnCloseCallback[rune]) IRingQueue[rune] {
+	return r
+}
+
+/**
+ * Does nothing, simply complies with the interface.
+ * @implement io.Closer
+ */
+func (r *RuneRingQueue) Close() error {
 	return nil
 }

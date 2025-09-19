@@ -1,26 +1,29 @@
+/* -----------------------------------------------------------------
+ *				   P u b l i c   D o m a i n / F O S
+ *  			Copyright (C)2023 Serge Toro, and
+ *				Copyright (C)2025 Muhammad H. Hosseinpour,
+ *				Copyright (C)2025 Dídimo Grimaldo T.
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ * Tests for methods on plain (Serge's) RingQueue
+ *-----------------------------------------------------------------*/
 package roundrobin
+
+/*
+	go test -bench=. -benchmem
+	DEGT: Added b.Loop() RRR tests
+	https://betterstack.com/community/guides/scaling-go/golang-benchmarking/
+*/
 
 import (
 	"fmt"
 	"testing"
-	"time"
 )
 
-func eqSlices[T comparable](a []T, b []T) bool {
-	if len(a) != len(b) {
-		return false
-	}
+/* ----------------------------------------------------------------
+ *						T e s t s
+ *-----------------------------------------------------------------*/
 
-	for idx := 0; idx < len(a); idx++ {
-		if a[idx] != b[idx] {
-			return false
-		}
-	}
-
-	return true
-}
-
-func TestToString(t *testing.T) {
+func Test_Stringer(t *testing.T) {
 	obj := NewRingQueue[int](10)
 	expected := "[RRQ full:false size:10 start:0 end:0 data:[0 0 0 0 0 0 0 0 0 0]]"
 	actual := fmt.Sprint(obj)
@@ -30,12 +33,14 @@ func TestToString(t *testing.T) {
 	}
 }
 
-func TestPushEnough(t *testing.T) {
+func Test_PushEnough(t *testing.T) {
 	obj := NewRingQueue[int](10)
 	for idx := 0; idx < 10; idx++ {
-		err := obj.Push(idx)
+		size, err := obj.Push(idx)
 		if err != nil {
-			t.Fatalf("Unexpected error in adding an element with index %d", idx)
+			t.Fatalf("unexpected error in adding an element with index %d", idx)
+		} else if size != idx+1 {
+			t.Fatalf("push returned wrong size. got %d exp %d", size, idx+1)
 		}
 	}
 
@@ -46,16 +51,18 @@ func TestPushEnough(t *testing.T) {
 	}
 }
 
-func TestPushOver(t *testing.T) {
+func Test_PushOver(t *testing.T) {
 	obj := NewRingQueue[int](10)
 	for idx := 0; idx < 10; idx++ {
-		err := obj.Push(idx)
+		size, err := obj.Push(idx)
 		if err != nil {
 			t.Fatalf("Unexpected error in adding an element with index %d", idx)
+		} else if size != idx+1 {
+			t.Fatalf("push returned wrong size. got %d exp %d", size, idx+1)
 		}
 	}
 
-	err := obj.Push(100)
+	_, err := obj.Push(100)
 	if err == nil {
 		t.Fatalf("Expected overflow error")
 	}
@@ -67,17 +74,22 @@ func TestPushOver(t *testing.T) {
 	}
 }
 
-func TestPushPop(t *testing.T) {
+func Test_PushPop(t *testing.T) {
 	obj := NewRingQueue[int](10)
 	for idx := 0; idx < 8; idx++ {
 		obj.Push(idx)
 	}
+
+	expSize := obj.Size()
 	for idx := 0; idx < 5; idx++ {
-		e, err := obj.Pop()
+		e, size, err := obj.Pop()
 		if err != nil || e != idx {
 			t.Fatalf("inconsistent behavior")
+		} else if size != expSize-idx-1 {
+			t.Fatalf("pop returned wrong size. got %d exp %d", size, expSize-idx-1)
 		}
 	}
+
 	for idx := 0; idx < 7; idx++ {
 		obj.Push(100 + idx)
 	}
@@ -92,84 +104,31 @@ func TestPushPop(t *testing.T) {
 		t.Fatalf("inconsistent size: %d", obj.Size())
 	}
 
+	expSize = obj.Size()
 	for idx := 0; idx < 10; idx++ {
-		e, _ := obj.Pop()
+		e, size, _ := obj.Pop()
 		if e != expected[(5+idx)%10] {
 			t.Fatalf("inconsistent behavior")
+		} else if size != expSize-idx-1 {
+			t.Fatalf("pop #%d returned wrong size. got %d exp %d", idx+1, size, expSize-idx-1)
 		}
 	}
 }
 
-func sim(capacity int) {
-	ar := make([]int, capacity, capacity)
-	size := 0
+/* ----------------------------------------------------------------
+ *					F u n c t i o n s
+ *-----------------------------------------------------------------*/
 
-	start := time.Now()
-	for n := 0; n < 1000000; n++ {
-		if size >= len(ar) {
-			copy(ar[0:], ar[1:])
-			size--
+func eqSlices[T comparable](a []T, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for idx := 0; idx < len(a); idx++ {
+		if a[idx] != b[idx] {
+			return false
 		}
-
-		ar[size] = n
-		size++
 	}
 
-	fmt.Printf("%d took %v\n", capacity, time.Since(start).Seconds())
-}
-
-func simRR(capacity int) {
-	rr := NewRingQueue[int](capacity)
-
-	start := time.Now()
-	for n := 0; n < 1000000; n++ {
-		if rr.IsFull() {
-			rr.Pop()
-		}
-		rr.Push(n)
-	}
-
-	fmt.Printf("%d took %v\n", capacity, time.Since(start).Seconds())
-}
-
-func TestSizes(t *testing.T) {
-	fmt.Println("array")
-	cap := 1
-	for idx := 1; idx < 7; idx++ {
-		sim(cap)
-		cap = cap * 10
-	}
-
-	fmt.Println("rr")
-	cap = 1
-	for idx := 1; idx < 7; idx++ {
-		simRR(cap)
-		cap = cap * 10
-	}
-}
-
-func BenchmarkRR(b *testing.B) {
-	rr := NewRingQueue[int](1_000)
-
-	for n := 0; n < b.N; n++ {
-		if rr.IsFull() {
-			rr.Pop()
-		}
-		rr.Push(n)
-	}
-}
-
-func BenchmarkArray(b *testing.B) {
-	var ar [1_000]int
-	size := 0
-
-	for n := 0; n < b.N; n++ {
-		if size >= len(ar) {
-			copy(ar[0:], ar[1:])
-			size--
-		}
-
-		ar[size] = n
-		size++
-	}
+	return true
 }
