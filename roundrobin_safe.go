@@ -79,14 +79,23 @@ func (s *safeRQ[T]) SetPopDeadline(t time.Time) error {
 	return nil
 }
 
-func (r *safeRQ[T]) SetOnClose(callback OnCloseCallback[T]) IRingQueue[T] {
-	r.rq.SetOnClose(callback)
-	return r
+func (s *safeRQ[T]) SetOnClose(callback OnCloseCallback[T]) IRingQueue[T] {
+	s.rq.SetOnClose(callback)
+	return s
 }
 
-func (r *safeRQ[T]) SetWhenFull(a WhenFull) IRingQueue[T] {
-	r.rq.SetWhenFull(a)
-	return r
+func (s *safeRQ[T]) SetWhenFull(a WhenFull) IRingQueue[T] {
+	s.rq.SetWhenFull(a)
+	return s
+}
+
+func (s *safeRQ[T]) Reset() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.rq.Reset()
+	s.resetChannel(s.available)
+	s.available = make(chan struct{}, 1)
 }
 
 // @implement io.Closer
@@ -193,4 +202,18 @@ func (s *safeRQ[T]) guardedPop() (elem T, newLen int, err error) {
 	elem, newLen, err = s.rq.Pop()
 
 	return
+}
+
+func (s *safeRQ[T]) resetChannel(ch chan struct{}) {
+	close(ch)
+	// Drain the channel non-blockingly but only attempt
+	// to read if channel is not closed (which we have)
+	for {
+		_, ok := <-ch
+		if !ok {
+			//fmt.Println("Channel closed.")
+			break // Exit the loop if the channel is closed
+		}
+		//fmt.Println(value) // Process the received value
+	}
 }

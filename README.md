@@ -47,6 +47,8 @@ suitable for your requirements. All three implementations comply with:
 		Push(element T) (newLen int, err error)
 		Pop() (element T, newLen int, err error)
 		Peek() (element T, len int, err error)
+
+		Reset()
 	}
 ```
 
@@ -98,7 +100,6 @@ used with the `NewRingQueue[T]()` *constructor*. It has these features:
 * Safe for **single-threaded** applications
 * Based on **generic types**
 * Benchmarked the differences between a plain array-based ring queue and his generics ring queue.
-* Has a bug in its `Len()` method though!
 * Read his full post here: https://www.sergetoro.com/golang-round-robin-queue-from-scratch
 
 **Muhammad's** [repository](https://github.com/hadi77ir/go-ringqueue) can be 
@@ -119,6 +120,10 @@ new features:
 * Given that a `Pop()` on an empty queue *may* block (user-defined), he
   introduced a user-defined *deadline*.
 * Consolidated errors that are globally-defined  
+* Has a bug in its `Len()` method though! which Serge already fixed after I filed an issue.
+  Unfortunately, M. Hadi's repository has disabled issues.
+* I believe he also has a bug in his Push method that instead checks `whenEmpty`
+  rather than `whenFull`, but again, there is no way to report problems with his code.  
 
 I needed a ring queue for runes only, and loved the benchmarking. I was curious about
 the performance differences between Serge's generics version, and a concrete rune
@@ -136,6 +141,7 @@ functionality other than adding a new (basic) type for curiosity, I also did thi
 * I simplified Muhammed's constructors without compromising functionality (see below).
 * I added the `SetWhenFull(WhenFull)` fluent API interface method.
 * I added the `SetOnClose(func OnCloseCallback[T])` fluent API interface method.
+* Added `Reset()` which is handy when reusing a buffer of the same size
 * All sources use a standards template, sorry, it comes from my times working at
   Software Process Improvement and Standarization.
 * Refactored the tests so that they are split into several files depending on

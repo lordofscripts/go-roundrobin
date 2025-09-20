@@ -59,6 +59,13 @@ func NewRuneRingQueue(capacity int) *RuneRingQueue {
  *				P u b l i c		M e t h o d s
  *-----------------------------------------------------------------*/
 
+func (r *RuneRingQueue) Reset() {
+	r.start = 0
+	r.end = 0
+	r.isFull = false
+	clear(r.data)
+}
+
 // @implements fmt.Stringer
 func (r *RuneRingQueue) String() string {
 	return fmt.Sprintf(

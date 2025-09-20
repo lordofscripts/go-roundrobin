@@ -53,6 +53,8 @@ type IRingQueue[T any] interface {
 	Push(element T) (newLen int, err error)
 	Pop() (element T, newLen int, err error)
 	Peek() (element T, len int, err error)
+
+	Reset()
 }
 
 /* ----------------------------------------------------------------

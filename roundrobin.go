@@ -67,6 +67,13 @@ func (r *RingQueue[T]) SetOnClose(callback OnCloseCallback[T]) IRingQueue[T] {
 	return r
 }
 
+func (r *RingQueue[T]) Reset() {
+	r.start = 0
+	r.end = 0
+	r.isFull = false
+	clear(r.data)
+}
+
 // @implements fmt.Stringer interface
 func (r *RingQueue[T]) String() string {
 	return fmt.Sprintf(
