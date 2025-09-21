@@ -25,7 +25,7 @@ import (
 
 func Test_Stringer(t *testing.T) {
 	obj := NewRingQueue[int](10)
-	expected := "[RRQ full:false size:10 start:0 end:0 data:[0 0 0 0 0 0 0 0 0 0]]"
+	expected := "[RRQ full:false max:10 start:0 end:0 data:[0 0 0 0 0 0 0 0 0 0]]"
 	actual := fmt.Sprint(obj)
 
 	if actual != expected {
@@ -49,6 +49,8 @@ func Test_PushEnough(t *testing.T) {
 	if !eqSlices(obj.data, expected) {
 		t.Fatalf("Container data mismatch, expected:%v, found:%v", expected, obj.data)
 	}
+
+	assertSize(obj, 10, t)
 }
 
 func Test_PushOver(t *testing.T) {
@@ -61,6 +63,7 @@ func Test_PushOver(t *testing.T) {
 			t.Fatalf("push returned wrong size. got %d exp %d", size, idx+1)
 		}
 	}
+	assertSize(obj, 10, t)
 
 	_, err := obj.Push(100)
 	if err == nil {
@@ -79,6 +82,7 @@ func Test_PushPop(t *testing.T) {
 	for idx := 0; idx < 8; idx++ {
 		obj.Push(idx)
 	}
+	assertSize(obj, 8, t)
 
 	expSize := obj.Size()
 	for idx := 0; idx < 5; idx++ {
@@ -89,10 +93,12 @@ func Test_PushPop(t *testing.T) {
 			t.Fatalf("pop returned wrong size. got %d exp %d", size, expSize-idx-1)
 		}
 	}
+	assertSize(obj, 3, t)
 
 	for idx := 0; idx < 7; idx++ {
 		obj.Push(100 + idx)
 	}
+	assertSize(obj, 10, t)
 
 	expected := []int{102, 103, 104, 105, 106, 5, 6, 7, 100, 101}
 
@@ -115,6 +121,29 @@ func Test_PushPop(t *testing.T) {
 	}
 }
 
+func Test_PushPopValues(t *testing.T) {
+	const MAX = 5
+	obj := NewRingQueue[int](MAX)
+	for idx := 0; idx < 5; idx++ {
+		obj.Push(idx)
+	}
+	assertSize(obj, MAX, t)
+
+	for idx := 0; idx < MAX; idx++ {
+		val, size, err := obj.Pop()
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if size != MAX-(idx+1) {
+			t.Errorf("unexpected size after Pop")
+		}
+		//fmt.Println(val)
+		if val != idx {
+			t.Errorf("unexpected Pop value: exp %d got %d", idx, val)
+		}
+	}
+}
+
 /* ----------------------------------------------------------------
  *					F u n c t i o n s
  *-----------------------------------------------------------------*/
@@ -131,4 +160,11 @@ func eqSlices[T comparable](a []T, b []T) bool {
 	}
 
 	return true
+}
+
+func assertSize[T any](obj IRingQueue[T], expected int, t *testing.T) {
+	t.Helper()
+	if obj.Size() != expected {
+		t.Errorf("Incorrect size reported, expected:%d, got:%d", expected, obj.Size())
+	}
 }

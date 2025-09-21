@@ -1,3 +1,8 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/lordofscripts/go-roundrobin.svg)](https://pkg.go.dev/github.com/lordofscripts/go-roundrobin)
+[![GitHub release (with filter)](https://img.shields.io/github/v/release/lordofscripts/go-roundrobin)](https://github.com/lordofscripts/go-roundrobin/releases/latest)
+[![GitHub License](https://img.shields.io/github/license/lordofscripts/go-roundrobin)](https://github.com/lordofscripts/go-roundrobin/blob/master/LICENSE)
+
+
 # go-roundrobin
 Ring (Circular or Round-Robin) queue-like container with fixed memory footprint.
 
@@ -6,6 +11,10 @@ company writing telecommunications firmware. Back then C was a luxury and we
 had to mix C with Assembly to meet memory space (RAM & ROM) and timing requirements.
 We used a Round-Robin buffer in some part. Later, for fun, I spiced up the
 round-robin code with some features **similar** to what we see in this module.
+
+**NOTE:** *Despite what it says above that it is N commits behind Serge's repo,
+I have already fixed that here but in a different way. I will have to disconnect
+the reference because our repositories are quite different.*
 
 ## What a Ring Queue is and Why use it
 So, what is a Ring Queue and why it's useful:
@@ -135,6 +144,10 @@ So, I, **Lord of Scripts** created this hybrid fork. My rune-specific type can
 be instantiated with the `NewRuneRingQueue()` constructor. While I didn't add great
 functionality other than adding a new (basic) type for curiosity, I also did this:
 
+* Added tests for different scenarios of `WhenFull` and `WhenEmpty`
+* Fixed several size issues from both Haddi's & Serge's code that returned the
+  wrong size. I decided to use a thread-safe size counter instead of the unreliable
+  size based on start/end comparisons (that bug remains in both their repos.)
 * I renamed the *interface* to `IRingQueue[T any]` and all three objects implement
   this interface.
 * `RuneRingQueue` is only suitable for single-threaded applications, like Serge's.

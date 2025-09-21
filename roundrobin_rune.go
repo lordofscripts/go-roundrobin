@@ -30,10 +30,10 @@ var _ IRingQueue[rune] = (*RuneRingQueue)(nil)
  * my pet project.
  */
 type RuneRingQueue struct {
-	data   []rune // container data of runes
-	isFull bool   // disambiguate whether the queue is full or empty
-	start  int    // start index (inclusive, i.e. first element)
-	end    int    // end index (exclusive, i.e. next after last element)
+	data  []rune // container data of runes
+	count *SafeCounter
+	start int // start index (inclusive, i.e. first element)
+	end   int // end index (exclusive, i.e. next after last element)
 
 	whenFull WhenFull
 }
@@ -48,7 +48,7 @@ type RuneRingQueue struct {
 func NewRuneRingQueue(capacity int) *RuneRingQueue {
 	return &RuneRingQueue{
 		data:     make([]rune, capacity),
-		isFull:   false,
+		count:    NewSafeCounter(),
 		start:    0,
 		end:      0,
 		whenFull: WhenFullError,
@@ -62,7 +62,7 @@ func NewRuneRingQueue(capacity int) *RuneRingQueue {
 func (r *RuneRingQueue) Reset() {
 	r.start = 0
 	r.end = 0
-	r.isFull = false
+	r.count.Clear()
 	clear(r.data)
 }
 
@@ -70,7 +70,7 @@ func (r *RuneRingQueue) Reset() {
 func (r *RuneRingQueue) String() string {
 	return fmt.Sprintf(
 		"[RuneRQ full:%v size:%d start:%d end:%d data:%v]",
-		r.isFull,
+		r.IsFull(),
 		len(r.data),
 		r.start,
 		r.end,
@@ -78,62 +78,60 @@ func (r *RuneRingQueue) String() string {
 }
 
 func (r *RuneRingQueue) Push(elem rune) (int, error) {
-	if r.isFull {
-		return r.Size(), ErrFullQueue
-	}
+	noIncrement := false
+	var newLen int
 
-	if r.isFull {
+	if r.IsFull() {
 		switch r.whenFull {
 		case WhenFullError:
-			return 0, ErrFullQueue
+			return r.Size(), ErrFullQueue
 
 		case WhenFullOverwrite:
 			// continue pushing with loss of data
-			break
+			// the OLDEST data gets overwritten as
+			// fresher data is prioritized.
+			noIncrement = true
+			newLen = len(r.data)
 
 		default:
-			return 0, errors.ErrUnsupported
+			return len(r.data), errors.ErrUnsupported
 		}
 	}
 
 	r.data[r.end] = elem              // place the new element on the available space
 	r.end = (r.end + 1) % len(r.data) // move the end forward by modulo of capacity
-	r.isFull = r.end == r.start       // check if we're full now
+	if !noIncrement {
+		newLen = int(r.count.Increment())
+	}
 
-	return r.Size(), nil
+	return newLen, nil
 }
 
 func (r *RuneRingQueue) Pop() (rune, int, error) {
-	var res rune // "zero" element (respective of the type)
-	if !r.isFull && r.start == r.end {
+	var res rune = 0
+	if r.count.Value() == 0 {
 		return res, 0, ErrEmptyQueue
 	}
 
 	res = r.data[r.start]                 // copy over the first element in the queue
 	r.start = (r.start + 1) % len(r.data) // move the start of the queue
-	r.isFull = false                      // since we're removing elements, we can never be full
+	newLen := r.count.Decrement()
 
-	return res, r.Size(), nil
+	return res, int(newLen), nil
 }
 
 func (r *RuneRingQueue) Peek() (rune, int, error) {
-	var res rune // "zero" element (respective of the type)
-	if !r.isFull && r.start == r.end {
+	var res rune = 0
+
+	if r.count.IsZero() {
 		return res, 0, ErrEmptyQueue
 	}
 
-	return r.data[r.start], r.Size(), nil
+	return r.data[r.start], int(r.count.Value()), nil
 }
 
 func (r *RuneRingQueue) Size() int {
-	res := r.end - r.start
-	if res == 0 && r.isFull {
-		res = len(r.data)
-	} else if res < 0 {
-		res = len(r.data) - res*-1
-	}
-
-	return res
+	return int(r.count.Value())
 }
 
 func (r *RuneRingQueue) Cap() int {
@@ -141,7 +139,9 @@ func (r *RuneRingQueue) Cap() int {
 }
 
 func (r *RuneRingQueue) IsFull() bool {
-	return r.isFull
+	// since Ctor(capacity) is an int, this cast will never go wrong
+	// @note unless the Ctor capacity type is changed to int64
+	return len(r.data) == int(r.count.Value())
 }
 
 /**

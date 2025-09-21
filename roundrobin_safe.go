@@ -144,6 +144,7 @@ func (s *safeRQ[T]) Push(element T) (newLen int, err error) {
 		default:
 		}
 	}
+
 	return
 }
 
@@ -188,9 +189,6 @@ func (s *safeRQ[T]) guardedPush(element T) (newLen int, err error) {
 	defer s.mutex.Unlock()
 
 	newLen, err = s.rq.Push(element)
-	if err != nil {
-		return 0, err
-	}
 
 	return
 }
