@@ -114,6 +114,18 @@ func TestSizes_RuneConcrete(t *testing.T) {
 	}
 }
 
+func TestPrimitiveAsymptoticPerformance(t *testing.T) {
+	fmt.Println("Standard array")
+	for idx := 7; idx < 14; idx++ {
+		sim(1 << idx)
+	}
+
+	fmt.Println("RoundRobin (ring) queue")
+	for idx := 7; idx < 14; idx++ {
+		simRingQueueInt(1 << idx)
+	}
+}
+
 /* ----------------------------------------------------------------
  *					F u n c t i o n s
  *-----------------------------------------------------------------*/
