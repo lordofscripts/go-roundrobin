@@ -171,7 +171,6 @@ func Test_PushFull_WhenFullError(t *testing.T) {
 
 func Test_PushFull_WhenFullOverwrite(t *testing.T) {
 	obj := NewSafeRingQueue[int](5, WhenFullOverwrite, WhenEmptyBlock, nil)
-	const FIRST_POP_VALUE int = 0
 	for i := range 5 { // 0..4
 		obj.Push(i)
 	}
